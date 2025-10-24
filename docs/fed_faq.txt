@@ -1,0 +1,19 @@
+Y-14M Reporting Overview
+
+What is Y-14M?
+The Y-14M report is a monthly regulatory filing required by the Federal Reserve for large bank holding companies. It captures detailed loan-level data for various credit products including credit cards, auto loans, and mortgages.
+
+Who must file Y-14M?
+Bank holding companies with total consolidated assets of $100 billion or more must submit Y-14M reports monthly. The reporting threshold is reviewed annually.
+
+What data is required for credit card reporting?
+Credit card data must include account identifiers, outstanding balances, credit limits, payment history, delinquency status, and borrower credit scores. All data must be as of the reporting period end date.
+
+When are Y-14M reports due?
+Monthly Y-14M reports are due by the 30th calendar day following the reporting period end date. Extensions may be granted for extraordinary circumstances.
+
+What is revolving utilization?
+Revolving utilization is the ratio of outstanding balance to credit limit. It is a key indicator of credit risk and borrower behavior. Higher utilization generally indicates higher risk.
+
+How should delinquency be reported?
+Delinquency should be reported in buckets: current, 30-59 days past due, 60-89 days past due, and 90+ days past due. The DPD (days past due) count begins the day after the payment due date.

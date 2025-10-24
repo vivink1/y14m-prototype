@@ -1,0 +1,27 @@
+Y-14M PROTOTYPE DEMO SCRIPT (90 seconds)
+
+"Good morning. I'll demonstrate our Y-14M prototype.
+
+First, I'll upload our credit card portfolio data - about 10 accounts for this demo.
+[Click upload, select dummy.csv]
+
+The system validates required fields: monthly income, revolving utilization, and delinquency status.
+[Point to data preview]
+
+Now I'll generate the report.
+[Click Generate button]
+
+Within seconds, we have three outputs:
+
+1. A clean CSV with calculated balances and data integrity hashes
+2. A narrative summary showing $2.1M in outstanding balances, 51% average utilization, and 30% delinquency rate
+3. Full Excel workbook for regulatory submission
+
+The system also flags our $100K variance against the general ledger - well within tolerance.
+
+Questions? The built-in Q&A can answer Y-14M requirements from Fed documentation.
+[Type: "When are Y-14M reports due?"]
+
+This prototype reduces report prep from 2 days to 2 minutes.
+
+Thank you."
