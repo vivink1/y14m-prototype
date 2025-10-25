@@ -162,10 +162,29 @@ with tab1:
                     df_raw = auto_alias_columns_strict(df_raw)
                     
                     st.success(f"✅ Loaded {len(df_raw):,} rows from uploaded file")
-                    with st.expander("🔍 File Information"):
+                    with st.expander("🔍 File Information & Diagnostics"):
                         st.write("**Columns found:**", list(df_raw.columns))
                         st.write("**First 3 rows:**")
                         st.dataframe(df_raw.head(3))
+                        
+                        # Show data ranges for key columns
+                        if "MonthlyIncome" in df_raw.columns or "MonthlyIncome" in df_mapped.columns:
+                            income_col = "MonthlyIncome" if "MonthlyIncome" in df_raw.columns else list(df_raw.columns)[0]
+                            st.write(f"**{income_col} range:** ${df_raw[income_col].min():,.2f} to ${df_raw[income_col].max():,.2f}")
+                        
+                        if "RevolvingUtil" in df_raw.columns or any("util" in c.lower() for c in df_raw.columns):
+                            util_cols = [c for c in df_raw.columns if "util" in c.lower()]
+                            if util_cols:
+                                st.write(f"**{util_cols[0]} range:** {df_raw[util_cols[0]].min():.4f} to {df_raw[util_cols[0]].max():.4f}")
+                        
+                        if "DPD30_59" in df_raw.columns or any("dpd" in c.lower() or "past" in c.lower() for c in df_raw.columns):
+                            dpd_cols = [c for c in df_raw.columns if "dpd" in c.lower() or "past" in c.lower()]
+                            if dpd_cols:
+                                st.write(f"**{dpd_cols[0]} - non-zero count:** {(df_raw[dpd_cols[0]] > 0).sum():,} out of {len(df_raw):,}")
+                        
+                        # Show sample values
+                        st.write("**Sample of all columns (first row):**")
+                        st.json(df_raw.iloc[0].to_dict())
                     
                     status_text.text("🔍 Validating columns...")
                     progress_bar.progress(40)
@@ -210,9 +229,16 @@ with tab1:
                     time.sleep(0.3)
                     
                     # ---- CRITICAL FIX: Auto-detect and fix RevolvingUtil format ----
+                    st.write("**Before processing:**")
+                    st.write(f"- RevolvingUtil min: {df_mapped['RevolvingUtil'].min():.6f}, max: {df_mapped['RevolvingUtil'].max():.6f}, mean: {df_mapped['RevolvingUtil'].mean():.6f}")
+                    st.write(f"- MonthlyIncome min: ${df_mapped['MonthlyIncome'].min():,.2f}, max: ${df_mapped['MonthlyIncome'].max():,.2f}")
+                    st.write(f"- DPD30_59 > 0: {(df_mapped['DPD30_59'] > 0).sum():,} rows")
+                    
                     if df_mapped["RevolvingUtil"].max() > 1.5:
                         st.warning("⚠️ Detected RevolvingUtil as percentages (e.g., 60.4). Converting to decimals (0.604)...")
                         df_mapped["RevolvingUtil"] = df_mapped["RevolvingUtil"] / 100
+                    elif df_mapped["RevolvingUtil"].max() < 0.01:
+                        st.warning("⚠️ RevolvingUtil values are very small (< 0.01). Your data might already be in decimal format but very low utilization.")
                     
                     # Cap at 1.0 for safety
                     df_mapped["RevolvingUtil"] = df_mapped["RevolvingUtil"].clip(0, 1.0)
