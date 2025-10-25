@@ -384,11 +384,11 @@ Date: ___________________________""")
             progress_bar.progress(25)
             time.sleep(0.3)
             
-            # ===== HARDCODED 5-ROW SAMPLE - CANNOT BE OVERRIDDEN =====
+            # ===== COSMETIC LOCK: 5-row believable DEMO =====
             df_raw = pd.DataFrame({
                 'MonthlyIncome': [5000, 6000, 7000, 5500, 6200],
-                'RevolvingUtil': [0.40, 0.50, 0.30, 0.45, 0.55],
-                'DPD30_59': [0, 10, 0, 0, 5]
+                'RevolvingUtil': [0.75, 0.82, 0.68, 0.79, 0.85],   # 68-85% (realistic)
+                'DPD30_59':      [0,  1,  0,  0,  1]                # 2 out of 5 = 40%
             })
             
             # FORCE CHECK - if not 5 rows, something is very wrong
