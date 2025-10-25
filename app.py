@@ -132,7 +132,17 @@ tab1, tab2, tab3, tab4 = st.tabs(["📤 Generate Report", "🔄 Reconciliation V
 
 with tab1:
     st.subheader("Upload Your Data or Use Sample")
-    data_source = st.radio("Choose data source:", ["Upload CSV File", "Use Sample Data"], horizontal=True)
+    
+    # Clear any uploaded file when switching to sample mode
+    if 'data_source' not in st.session_state:
+        st.session_state.data_source = "Use Sample Data"
+    
+    data_source = st.radio("Choose data source:", ["Upload CSV File", "Use Sample Data"], 
+                           horizontal=True, key='data_source_radio')
+    
+    # Reset uploaded file if switching to sample
+    if data_source == "Use Sample Data" and 'uploaded_file' in st.session_state:
+        st.session_state.pop('uploaded_file', None)
 
     if data_source == "Upload CSV File":
         st.info("Upload your own CSV file with credit card account data.")
@@ -262,33 +272,39 @@ Date: ___________________________""")
         else:
             st.warning("⬆️ Please upload a CSV file to continue")
 
-    else:  # Sample mode
-        st.info("Demo mode – built-in sample data (5 accounts).")
-        if st.button("🚀 Generate Y-14M Report", type="primary", use_container_width=True):
-            # ===== ENHANCEMENT #1: PROGRESS BAR (SAMPLE MODE) =====
+    elif data_source == "Use Sample Data":  # ONLY runs if Sample Data selected
+        st.info("🎯 Demo mode – using 5 hardcoded accounts (no file upload)")
+        
+        if st.button("🚀 Generate Y-14M Report", type="primary", use_container_width=True, key="sample_generate"):
+            # ===== PROGRESS BAR =====
             progress_bar = st.progress(0)
             status_text = st.empty()
             
-            status_text.text("⏳ Loading sample data...")
+            status_text.text("⏳ Creating sample data...")
             progress_bar.progress(25)
             time.sleep(0.3)
             
-            # ---- LOCK: 5-row friendly demo ----
-            sample_csv = """MonthlyIncome,RevolvingUtil,DPD30_59
-5000,0.40,0
-6000,0.50,10
-7000,0.30,0
-5500,0.45,0
-6200,0.55,5"""
-
-            df_raw = pd.read_csv(io.StringIO(sample_csv), index_col=False)
+            # ===== HARDCODED 5-ROW SAMPLE - CANNOT BE OVERRIDDEN =====
+            df_raw = pd.DataFrame({
+                'MonthlyIncome': [5000, 6000, 7000, 5500, 6200],
+                'RevolvingUtil': [0.40, 0.50, 0.30, 0.45, 0.55],
+                'DPD30_59': [0, 10, 0, 0, 5]
+            })
+            
+            # FORCE CHECK - if not 5 rows, something is very wrong
+            assert len(df_raw) == 5, f"CRITICAL ERROR: Sample has {len(df_raw)} rows, not 5!"
             
             status_text.text("🔍 Validating data...")
             progress_bar.progress(50)
             time.sleep(0.3)
             
-            st.success(f"✅ Loaded {len(df_raw):,} sample accounts")
-            st.dataframe(df_raw, use_container_width=True)
+            st.success(f"✅ Created {len(df_raw)} sample accounts (hardcoded)")
+            
+            # DEBUG: Show what we actually created
+            with st.expander("🔍 Debug: Raw Sample Data"):
+                st.write(f"**Rows:** {len(df_raw)}")
+                st.write(f"**Columns:** {list(df_raw.columns)}")
+                st.dataframe(df_raw, use_container_width=True)
             
             status_text.text("⚙️ Processing balances...")
             progress_bar.progress(75)
