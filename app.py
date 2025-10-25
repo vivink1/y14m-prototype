@@ -53,16 +53,23 @@ def add_metadata(df, reporting_date, product_code):
 
 def process_pipeline(df, reporting_date, product_code):
     validate_data(df)
+    
+    # Store original RevolvingUtil BEFORE any modifications
+    df["RevolvingUtil_Original"] = df["RevolvingUtil"].copy()
+    
     df_bal = calculate_balances(df)
     return add_metadata(df_bal, reporting_date, product_code)
 
 def generate_narrative(df, reporting_date, product_code, gl_control):
     total_balance = df["OutstandingBalance"].sum()
     
-    # Fix: Use the original RevolvingUtil column before any processing
-    avg_util = df["RevolvingUtil"].mean()
+    # Use the original RevolvingUtil before any transformations
+    if "RevolvingUtil_Original" in df.columns:
+        avg_util = df["RevolvingUtil_Original"].mean()
+    else:
+        avg_util = df["RevolvingUtil"].mean()
     
-    # Fix: Delinquency is count-based, so check if ANY delinquency exists
+    # Delinquency is count-based, so check if ANY delinquency exists
     delinq_rate = (df["DPD30_59"] > 0).mean()
     
     variance = abs(gl_control - total_balance)
