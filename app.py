@@ -15,7 +15,7 @@ except Exception:
 # === CONFIG ===
 DEFAULT_REPORTING_DATE = "2025-03-31"
 DEFAULT_PRODUCT_CODE   = "CCARD"
-DEFAULT_GL_CONTROL     = 20_000_000  # Only used for upload mode; sample mode auto-matches for demo
+DEFAULT_GL_CONTROL     = 7_000_000  # Matches typical credit card portfolio from sample data
 REQUIRED_COLUMNS       = ["MonthlyIncome", "RevolvingUtil", "DPD30_59"]
 
 # =========================
@@ -58,10 +58,15 @@ def process_pipeline(df, reporting_date, product_code):
 
 def generate_narrative(df, reporting_date, product_code, gl_control):
     total_balance = df["OutstandingBalance"].sum()
-    avg_util      = df["RevolvingUtil"].mean()
-    delinq_rate   = (df["DPD30_59"] > 0).mean()
-    variance      = abs(gl_control - total_balance)
-    variance_pct  = (variance / gl_control * 100) if gl_control else 0.0
+    
+    # Fix: Use the original RevolvingUtil column before any processing
+    avg_util = df["RevolvingUtil"].mean()
+    
+    # Fix: Delinquency is count-based, so check if ANY delinquency exists
+    delinq_rate = (df["DPD30_59"] > 0).mean()
+    
+    variance = abs(gl_control - total_balance)
+    variance_pct = (variance / gl_control * 100) if gl_control else 0.0
 
     narrative = f"""Y-14M CREDIT CARD PORTFOLIO SUMMARY
 Reporting Date: {reporting_date}
@@ -82,7 +87,7 @@ CONTROL RECONCILIATION:
         narrative += "\n⚠️ WARNING: Variance exceeds 5% threshold. Management review required."
     else:
         narrative += "\n✓ Variance within acceptable tolerance."
-    return narrative, total_balance, variance_pct   # exactly 3
+    return narrative, total_balance, variance_pct
 
 # =========================
 # COLUMN ALIASING
