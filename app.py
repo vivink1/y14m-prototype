@@ -161,31 +161,42 @@ with tab1:
                     df_raw = pd.read_csv(uploaded_file, index_col=False)
                     df_raw = auto_alias_columns_strict(df_raw)
                     
+                    st.success(f"✅ Loaded {len(df_raw):,} rows from uploaded file")
+                    with st.expander("🔍 File Information"):
+                        st.write("**Columns found:**", list(df_raw.columns))
+                        st.write("**First 3 rows:**")
+                        st.dataframe(df_raw.head(3))
+                    
                     status_text.text("🔍 Validating columns...")
-                    progress_bar.progress(50)
+                    progress_bar.progress(40)
                     time.sleep(0.3)
 
-                    # Column Mapper UI
-                    st.subheader("🔧 Column Mapper")
-                    c1, c2, c3, c4 = st.columns(4)
-                    with c1:
-                        inc_col = st.selectbox("Monthly Income column", df_raw.columns, help="Select monthly income")
-                    with c2:
-                        util_col = st.selectbox("Revolving Util column (0-1)", df_raw.columns, help="Select utilization (0-1 decimal)")
-                    with c3:
-                        dpd_col = st.selectbox("30-59 DPD column", df_raw.columns, help="Select 30-59 days past due")
-                    with c4:
-                        bal_candidates = ["<none>"] + list(df_raw.columns)
-                        bal_col = st.selectbox("Current Balance column (optional)", bal_candidates, help="If present, maps to CurrentBalance")
-
-                    rename_map = {inc_col: "MonthlyIncome", util_col: "RevolvingUtil", dpd_col: "DPD30_59"}
-                    if bal_col != "<none>":
-                        rename_map[bal_col] = "CurrentBalance"
-                    df_mapped = df_raw.rename(columns=rename_map)
+                    # Auto-detect if columns need mapping
+                    missing_cols = [c for c in REQUIRED_COLUMNS if c not in df_raw.columns]
                     
-                    # ---- cap util at 1.0 for demo credibility ----
-                    df_mapped["RevolvingUtil"] = df_mapped["RevolvingUtil"].clip(0, 1.0)
+                    if missing_cols:
+                        # Column Mapper UI
+                        st.subheader("🔧 Column Mapper")
+                        st.info(f"Missing: {', '.join(missing_cols)}. Please map your columns below:")
+                        
+                        c1, c2, c3, c4 = st.columns(4)
+                        with c1:
+                            inc_col = st.selectbox("Monthly Income column", df_raw.columns, help="Select monthly income")
+                        with c2:
+                            util_col = st.selectbox("Revolving Util column (0-1 or 0-100)", df_raw.columns, help="Select utilization")
+                        with c3:
+                            dpd_col = st.selectbox("30-59 DPD column", df_raw.columns, help="Select 30-59 days past due")
+                        with c4:
+                            bal_candidates = ["<none - calculate from income>"] + list(df_raw.columns)
+                            bal_col = st.selectbox("Current Balance (optional)", bal_candidates, help="If present, use this as balance")
 
+                        rename_map = {inc_col: "MonthlyIncome", util_col: "RevolvingUtil", dpd_col: "DPD30_59"}
+                        if bal_col != "<none - calculate from income>":
+                            rename_map[bal_col] = "CurrentBalance"
+                        df_mapped = df_raw.rename(columns=rename_map)
+                    else:
+                        df_mapped = df_raw.copy()
+                    
                     # Final safety net
                     required_missing = [c for c in REQUIRED_COLUMNS if c not in df_mapped.columns]
                     if required_missing:
@@ -193,24 +204,49 @@ with tab1:
                         progress_bar.empty()
                         st.error("❌ Still missing after mapping: " + ", ".join(required_missing) + ". Pick the correct source columns above.")
                         st.stop()
-
-                    st.success(f"✅ Loaded {len(df_mapped):,} rows from uploaded file")
-                    with st.expander("🔍 File Information"):
-                        st.write("**Columns found:**", list(df_mapped.columns))
-                        st.dataframe(df_mapped.head(3))
-
+                    
                     status_text.text("⚙️ Processing balances...")
-                    progress_bar.progress(75)
+                    progress_bar.progress(60)
                     time.sleep(0.3)
+                    
+                    # ---- CRITICAL FIX: Auto-detect and fix RevolvingUtil format ----
+                    if df_mapped["RevolvingUtil"].max() > 1.5:
+                        st.warning("⚠️ Detected RevolvingUtil as percentages (e.g., 60.4). Converting to decimals (0.604)...")
+                        df_mapped["RevolvingUtil"] = df_mapped["RevolvingUtil"] / 100
+                    
+                    # Cap at 1.0 for safety
+                    df_mapped["RevolvingUtil"] = df_mapped["RevolvingUtil"].clip(0, 1.0)
                     
                     df_processed = process_pipeline(df_mapped, reporting_date.strftime("%Y-%m-%d"), product_code)
                     
                     status_text.text("✅ Generating narrative...")
+                    progress_bar.progress(80)
+                    time.sleep(0.3)
+                    
+                    # Calculate actual balance
+                    total_balance = df_processed["OutstandingBalance"].sum()
+                    
+                    # Auto-suggest GL Control based on data
+                    suggested_gl = round(total_balance, -6)  # Round to nearest million
+                    
+                    st.info(f"💡 **Suggested GL Control:** ${suggested_gl:,.0f} (matches your data). You can adjust in sidebar if needed.")
+                    
+                    # Use sidebar GL control, but warn if variance is huge
+                    variance_pct = abs(gl_control - total_balance) / gl_control * 100 if gl_control else 0
+                    
+                    if variance_pct > 50:
+                        st.warning(f"⚠️ Large variance detected ({variance_pct:.1f}%). Consider setting GL Control to ${suggested_gl:,.0f} in the sidebar.")
+                    
+                    narrative_text, total_balance_check, variance_pct_final = generate_narrative(
+                        df_processed, 
+                        reporting_date.strftime("%Y-%m-%d"), 
+                        product_code, 
+                        gl_control
+                    )
+                    
                     progress_bar.progress(100)
                     time.sleep(0.2)
                     
-                    narrative_text, total_balance, variance_pct = generate_narrative(df_processed, reporting_date.strftime("%Y-%m-%d"), product_code, gl_control)
-
                     status_text.empty()
                     progress_bar.empty()
 
@@ -226,24 +262,26 @@ with tab1:
                     with col_b:
                         st.metric("Reported Balance", f"${total_balance:,.0f}")
                     with col_c:
-                        delta_color = "normal" if variance_pct <= 5 else "inverse"
+                        delta_color = "normal" if variance_pct_final <= 5 else "inverse"
                         st.metric("Variance", f"${abs(gl_control - total_balance):,.0f}", 
-                                  delta=f"{variance_pct:.2f}%", delta_color=delta_color)
+                                  delta=f"{variance_pct_final:.2f}%", delta_color=delta_color)
                     
                     st.subheader("📄 Narrative Summary")
                     st.text_area("", narrative_text, height=120, disabled=True, label_visibility="collapsed")
+                    
                     st.subheader("🖊 Management Attestation (Draft)")
                     st.text(f"""ATTESTATION (Management Review)
 Reporting Date: {reporting_date.strftime('%Y-%m-%d')}
 Product: {product_code}
 
-I acknowledge that the reported balance of ${total_balance:,.2f} {'differs from' if variance_pct > 0 else 'matches'} the GL control total of ${gl_control:,.2f} with a variance of {variance_pct:.2f}%.
+I acknowledge that the reported balance of ${total_balance:,.2f} {'differs from' if variance_pct_final > 0 else 'matches'} the GL control total of ${gl_control:,.2f} with a variance of {variance_pct_final:.2f}%.
 Variance drivers (if any): _______________________________________
 
 Approved by: ____________________        Title: ________________
 Date: ___________________________""")
-                    st.subheader("📊 Processed Data")
-                    st.dataframe(df_processed, use_container_width=True)
+                    
+                    st.subheader("📊 Processed Data (first 100 rows)")
+                    st.dataframe(df_processed.head(100), use_container_width=True)
                     
                     # ===== ENHANCEMENT #2: HASH AUDIT BOX =====
                     st.subheader("🔍 Lineage Hash Audit")
