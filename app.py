@@ -32,8 +32,13 @@ def calculate_balances(df):
     if "CurrentBalance" in df.columns:
         df["OutstandingBalance"] = df["CurrentBalance"].round(2)
     else:
-        # Realistic balance: MonthlyIncome * RevolvingUtil (no multiplier)
-        df["OutstandingBalance"] = (df["MonthlyIncome"] * df["RevolvingUtil"]).round(2)
+        # Handle missing/NA MonthlyIncome values
+        df["MonthlyIncome"] = pd.to_numeric(df["MonthlyIncome"], errors='coerce')
+        df = df.dropna(subset=["MonthlyIncome"])  # Remove rows with no income
+        
+        # Realistic balance: MonthlyIncome * RevolvingUtil * 12 (annual)
+        # This assumes credit card balance is based on annual income utilization
+        df["OutstandingBalance"] = (df["MonthlyIncome"] * 12 * df["RevolvingUtil"]).round(2)
     return df
 
 def add_metadata(df, reporting_date, product_code):
@@ -229,10 +234,13 @@ with tab1:
                     time.sleep(0.3)
                     
                     # ---- CRITICAL FIX: Auto-detect and fix RevolvingUtil format ----
+                    rows_before = len(df_mapped)
+                    
                     st.write("**Before processing:**")
+                    st.write(f"- Total rows: {rows_before:,}")
                     st.write(f"- RevolvingUtil min: {df_mapped['RevolvingUtil'].min():.6f}, max: {df_mapped['RevolvingUtil'].max():.6f}, mean: {df_mapped['RevolvingUtil'].mean():.6f}")
-                    st.write(f"- MonthlyIncome min: ${df_mapped['MonthlyIncome'].min():,.2f}, max: ${df_mapped['MonthlyIncome'].max():,.2f}")
-                    st.write(f"- DPD30_59 > 0: {(df_mapped['DPD30_59'] > 0).sum():,} rows")
+                    st.write(f"- MonthlyIncome: {df_mapped['MonthlyIncome'].notna().sum():,} valid, {df_mapped['MonthlyIncome'].isna().sum():,} NA values")
+                    st.write(f"- DPD30_59 > 0: {(df_mapped['DPD30_59'] > 0).sum():,} rows ({(df_mapped['DPD30_59'] > 0).mean()*100:.1f}%)")
                     
                     if df_mapped["RevolvingUtil"].max() > 1.5:
                         st.warning("⚠️ Detected RevolvingUtil as percentages (e.g., 60.4). Converting to decimals (0.604)...")
@@ -244,6 +252,10 @@ with tab1:
                     df_mapped["RevolvingUtil"] = df_mapped["RevolvingUtil"].clip(0, 1.0)
                     
                     df_processed = process_pipeline(df_mapped, reporting_date.strftime("%Y-%m-%d"), product_code)
+                    
+                    rows_after = len(df_processed)
+                    if rows_after < rows_before:
+                        st.info(f"ℹ️ Removed {rows_before - rows_after:,} rows with missing MonthlyIncome (NA values). Processing {rows_after:,} valid accounts.")
                     
                     status_text.text("✅ Generating narrative...")
                     progress_bar.progress(80)
